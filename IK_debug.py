@@ -128,7 +128,7 @@ def test_code(test_case):
                     [sin(y),  cos(y), 0],
                     [0,            0, 1]]) # Yaw
 
-    ROT_EE = ROT_z * ROT_y * ROT _x
+    ROT_EE = ROT_z * ROT_y * ROT_x
 
     # Rotation error correction
     Rot_Error - ROT_z.subs(y, radians(100) * ROT_y.subs(p, radians(-90)))
@@ -140,7 +140,7 @@ def test_code(test_case):
                  [py]
                  [pz]])
 
-    WC = EE - (0.303) * ROT_EE[:.2]
+    WC = EE - (0.303) * ROT_EE[:,2]
 
     # Calc joint angles with Geometeric IK method
     # Theta 1
@@ -161,12 +161,17 @@ def test_code(test_case):
     RO_3 = TO_1[0:3,0:3] + TO_2[0:3,0:3] + TO_3[0:3,0:3]
     RO_3 = RO_3.eval(subs={q1: theta1, q2: theta2, q3: theta3})
 
-    R3_6 = RO_3.inv["LU"] * ROT_EE
+    #R3_6 = RO_3.inv["LU"] * ROT_EE
+    R3_6 = R0_3.T * ROT_EE
 
     # Euler angles from rotation matrix
-    theta4 = atan2(R3_6[2,2], -R3_6[0,2])
-    theta5 = atan2(sqrt(R3_6[0,2]*R3_6[0,2] + R3_6[2,2]*R3_6[2,2]), R3_6[1,2])
-    theta6 = atan2(-R3_6[1,1], R3_6[1,0])
+    theta5 = atan2(sqrt(R3_6[0,2]*R3_6[0,2] + R3_6[2,2] * R3_6[2,2]), R3_6[1,2])
+    if sin(theta5) < 0:
+        theta4 = atan2(-R3_6[2,2], R3_6[0,2])
+        theta6 = atan2(R3_6[1,1], -R3_6[1,0])
+    else:
+        theta4 = atan2(R3_6[2,2], -R3_6[0,2])
+        theta6 = atan2(-R3_6[1,1], R3_6[1,0])
 
     ## 
     ########################################################################################
