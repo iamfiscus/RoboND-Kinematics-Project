@@ -22,6 +22,9 @@
 [image3]: ./misc_images/misc2.png
 [diagram]: ./misc_images/diagram.png
 [angle]: ./misc_images/angle.png
+[grasp]: ./misc_images/grasp.png
+[move-path]: ./misc_images/move-path.png
+[dh-transform-matrix]: ./misc_images/dh-transform-matrix.png
 
 ## [Rubric](https://review.udacity.com/#!/rubrics/972/view) Points
 ### Here I will consider the rubric points individually and describe how I addressed each point in my implementation.  
@@ -36,22 +39,35 @@ You're reading it!
 ### Kinematic Analysis
 #### 1. Run the forward_kinematics demo and evaluate the kr210.urdf.xacro file to perform kinematic analysis of Kuka KR210 robot and derive its DH parameters.
 
-This is the model followed to derive the DH parameters.  
+
+
+First I started by looking at the kr20.urdf.xacro as a reference to get the XYZ, roll, pitch, and yaw values for the joints. This table mimics is a visual representation of the XML.
+
+Joint | Parent | Child | x | y | z | roll | pitch | yaw
+--- | --- | --- | --- | --- | --- | --- | ---
+joint_1 | base_link | link_1 | 0 | 0 | 0.33 | 0 | 0 | 0
+joint_2 | link_1 | link_2 | 0.35 | 0 | 0.42 | 0 | 0 | 0
+joint_3 | link_2 | link_3 | 0 | 0 | 1.25 | 0 | 0 | 0
+joint_4 | link_3 | link_4 | 0.96 | 0 | -0.054 | 0 | 0 | 0
+joint_5 | link_4 | link_5 | 0.54 | 0 | 0 | 0 | 0 | 0
+joint_6 | link_5 | link_6 | 0.193 | 0 | 0 | 0 | 0 | 0
+gripper_joint | link_6 | gripper_link | 0.11 | 0 | 0 | 0 | 0 | 0
+right_gripper_finger_joint | gripper_link | right_gripper_finger_link | 0.15 | 0 | 0 | 0 | 0 | 0
+left_gripper_finger_joint | gripper_link | left_gripper_finger_link | 0.15 | 0 | 0 | 0 | 0 | 0
+
+Then follow this model to derive the DH parameters based on the lesson.
 
 ![alt text][diagram]
 
-#### 2. Using the DH parameter table you derived earlier, create individual transformation matrices about each joint. In addition, also generate a generalized homogeneous transform between base_link and gripper_link using only end-effector(gripper) pose.
-This is the code that gives us our DH table print out below.
-``` python
-DH_Table = { alpha0:      0, a0:      0, d1:  0.75, q1:          q1,
-               alpha1: -pi/2., a1:   0.35, d2:     0, q2: -pi/2. + q2,
-               alpha2:      0, a2:   1.25, d3:     0, q3:          q3,
-               alpha3: -pi/2., a3: -0.054, d4:   1.5, q4:          q4,
-               alpha4: -pi/2., a4:      0, d5:     0, q5:          q5,
-               alpha5: -pi/2., a5:      0, d6:     0, q6:          q6,
-               alpha6:      0, a6:      0, d7: 0.303, q7:           0}
-```
-
+| i | a(i-1) | a(i-1) | d(i) | θ(i) |
+| --- | --- | --- | --- | --- |
+| 1 | 0 | 0 | d1 | θ1 |
+| 2 | -90 | a1 | 0 | θ2 - 90 |
+| 3 | 0 | a2 | 0 | θ3 |
+| 4 | -90 | a3 | d4 | θ4 |
+| 5 | 90 | 0 | 0 | θ5 |
+| 6 | -90 | 0 | 0 | θ6 |
+| G | 0 | 0 | dG | 0 |
 
 Links | alpha(i-1) | a(i-1) | d(i-1) | theta(i)
 --- | --- | --- | --- | ---
@@ -63,7 +79,23 @@ Links | alpha(i-1) | a(i-1) | d(i-1) | theta(i)
 5->6 | -90 | 0 | 0 | 06
 6->EE | 0 | 0 | 0.303 | 0
 
-In order to create individual transformation matrices we are first going to create a reusable function
+#### 2. Using the DH parameter table you derived earlier, create individual transformation matrices about each joint. In addition, also generate a generalized homogeneous transform between base_link and gripper_link using only end-effector(gripper) pose.
+
+This is the code that gives us our DH table print out below.
+``` python
+DH_Table = { alpha0:      0, a0:      0, d1:  0.75, q1:          q1,
+               alpha1: -pi/2., a1:   0.35, d2:     0, q2: -pi/2. + q2,
+               alpha2:      0, a2:   1.25, d3:     0, q3:          q3,
+               alpha3: -pi/2., a3: -0.054, d4:   1.5, q4:          q4,
+               alpha4: -pi/2., a4:      0, d5:     0, q5:          q5,
+               alpha5: -pi/2., a5:      0, d6:     0, q6:          q6,
+               alpha6:      0, a6:      0, d7: 0.303, q7:           0}
+```
+
+In order to create individual transformation matrices we are first going to create a reusable function based on the following equation:
+![alt text][dh-transform-matrix]
+> Referenced from Udacity Robotics Nanodegree
+
 ``` python
 def TF_Matrix(alpha, a, d, q):
         TF = Matrix([[            cos(q),           -sin(q),           0,             a],
@@ -86,26 +118,24 @@ T0_EE = T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6 * T6_EE
 ```
 
 #### 3. Decouple Inverse Kinematics problem into Inverse Position Kinematics and inverse Orientation Kinematics; doing so derive the equations to calculate all individual joint angles.
+Wrist center is created with the following function using joint 5.
+``` python
+WC = EE - (0.303) * ROT_EE[:,2]
+```
 
+Theta 1 is calculated using WC array.
+``` python
+theta1 = atan2(WC[1], WC[0])
+```
+
+We get Theta2, Theta3 with SSS triangle
 ![Angles][angle]
+``` python
+theta2 = pi /2 - angle_a - atan2(WC[2] - 0.75, sqrt(WC[0] * WC[0] + WC[1] * WC[1]) - 0.35)
+theta3 = pi / 2 - (angle_b + 0.036)
+```
 
-### Project Implementation
-
-#### 1. Fill in the `IK_server.py` file with properly commented python code for calculating Inverse Kinematics based on previously performed Kinematic Analysis. Your code must guide the robot to successfully complete 8/10 pick and place cycles. Briefly discuss the code you implemented and your results.
-
-
-This was a very hard project for me, so I ended up using the walkthrough for help.
-
-However the first step was defining the symbols and then calculating the transform matrix between the different joints. I made a reusable function which takes the parameters alpha, a, d, and q.
-```TF_Matrix(alpha, a, d, q)```
-
-Next was to do the inverse position kinematics and inverse orientation kinematics which I had to calculate rotation matrix from the given roll, pitch and yaw. I then had to calculate the rotation matrix ROT_EE which I used the equation to find WC.
-
-For our Theta's we know the following:
-- Theta1 controls the yaw direction Movement
-- We get Theta2, Theta3 with SSS triangle
-- Theta's 4-6 can be positive or negative so we need to account for that in an if statement
-
+Theta's 4-6 can be positive or negative so we need to account for that in an if statement
 ``` python
 theta5 = atan2(sqrt(R3_6[0,2]*R3_6[0,2] + R3_6[2,2] * R3_6[2,2]), R3_6[1,2])
 if sin(theta5) < 0:
@@ -115,3 +145,22 @@ else:
   theta4 = atan2(R3_6[2,2], -R3_6[0,2])
   theta6 = atan2(-R3_6[1,1], R3_6[1,0])
 ```
+
+### Project Implementation
+
+#### 1. Fill in the `IK_server.py` file with properly commented python code for calculating Inverse Kinematics based on previously performed Kinematic Analysis. Your code must guide the robot to successfully complete 8/10 pick and place cycles. Briefly discuss the code you implemented and your results.
+
+
+This was a very hard project for me, so I ended up using the walkthrough for help.
+
+However the first step was defining the symbols and then calculating the transform matrix between the different joints. I made a reusable function which takes the parameters alpha, a, d, and q.
+`TF_Matrix(alpha, a, d, q)`
+
+Next was to do the inverse position kinematics and inverse orientation kinematics which I had to calculate rotation matrix from the given roll, pitch and yaw. I then had to calculate the rotation matrix ROT_EE which I used the equation to find WC.
+
+#### Result
+Here is an example of the robot grasping the cylinder:
+![Grasping][grasp]
+
+Here is an example of the robot trajectory path:
+![Trajectory Path][move-path]
