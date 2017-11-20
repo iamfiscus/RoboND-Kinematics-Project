@@ -194,28 +194,35 @@ T0_EE = T0_1 * T1_2 * T2_3 * T3_4 * T4_5 * T5_6 * T6_EE
 ```
 
 #### 3. Decouple Inverse Kinematics problem into Inverse Position Kinematics and inverse Orientation Kinematics; doing so derive the equations to calculate all individual joint angles.
-
-Wrist center is created with the following function using joint 5.
+Wrist center(WC) is created with the following function using joint 5.
 
 ```python
 WC = EE - (0.303) * ROT_EE[:,2]
 ```
 
+Joints 1-3 are used in order to position the WC correctly which is inverse position kinematics. They are called Theta 1-3 in the code.
 Theta 1 is calculated using WC array.
 
 ```python
-theta1 = atan2(WC[1], WC[0])
+theta1 = atan2(WC[1], WC[0]) # Equation = atan2(WCy, WCx)
 ```
 
-We get Theta2, Theta3 with SSS triangle
+We get Theta2 with SSS triangle constructed using joint 2, joint 3, and WC.
 
 ![Angles][angle]
 
 ```python
+# Equation = pi /2 - angle_a - atan2(WCz - 0.75, sqrt(WCx * WCx + WCy * WCy) - 0.35)
 theta2 = pi /2 - angle_a - atan2(WC[2] - 0.75, sqrt(WC[0] * WC[0] + WC[1] * WC[1]) - 0.35)
+```
+
+We get Theta 3 with the following:
+
+```python
 theta3 = pi / 2 - (angle_b + 0.036)
 ```
 
+The last joints 4-6 are used in order to orient the end effector which is inverse orientation kinematics. They are called Theta 4-6 in the code.
 In Thetas 4-6 you can use the following equation: ![Thetas 4, 5, 6][thetas456]
 
 <!-- \begin{bmatrix}
